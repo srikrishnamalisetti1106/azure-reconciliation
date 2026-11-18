@@ -1,0 +1,16 @@
+pyspark
+pytest
+pandas
+duckdb
+python-dotenv
+ruff
+anthropic
+langgraph
+langchain-anthropic
+mcp
+fastapi
+uvicorn
+chromadb
+sentence-transformers
+langfuse
+databricks-sql-connector
