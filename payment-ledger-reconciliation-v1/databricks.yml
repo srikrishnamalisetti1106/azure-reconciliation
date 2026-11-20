@@ -1,0 +1,87 @@
+# Databricks Asset Bundle: the production pipeline as code.
+#   databricks bundle validate -t dev
+#   databricks bundle deploy   -t dev     (your own copy, prefixed with your name, schedules paused)
+#   databricks bundle deploy   -t prod    (CI only, runs as the service principal)
+bundle:
+  name: payment-ledger-reconciliation
+
+variables:
+  catalog:
+    description: Unity Catalog catalog for the bronze/silver/gold/reporting schemas
+    default: recon_dev
+  landing_path:
+    description: Where processor, ledger and fee files arrive (ADLS external location, Terraform output landing_url)
+    default: /Volumes/recon_dev/bronze/landing/
+  checkpoint_path:
+    description: Auto Loader checkpoints and schema tracking
+    default: /Volumes/recon_dev/bronze/checkpoints/
+  alert_email:
+    description: Who hears about a failed run
+    default: data-oncall@example.com
+
+sync:
+  include:
+    - reconciliation/**
+    - databricks/prod/**
+
+resources:
+  jobs:
+    reconciliation_daily:
+      name: reconciliation-daily
+      max_concurrent_runs: 1
+      # Runs when a new file lands, instead of on a fixed clock.
+      trigger:
+        pause_status: UNPAUSED
+        file_arrival:
+          url: ${var.landing_path}
+          min_time_between_triggers_seconds: 300
+      email_notifications:
+        on_failure:
+          - ${var.alert_email}
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: landing_path
+          default: ${var.landing_path}
+        - name: checkpoint_path
+          default: ${var.checkpoint_path}
+        - name: run_id
+          default: "{{job.run_id}}"
+      tasks:
+        - task_key: setup
+          notebook_task:
+            notebook_path: ./databricks/prod/00_setup.py
+        - task_key: bronze
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ./databricks/prod/01_bronze_autoloader.py
+        - task_key: silver
+          depends_on: [{task_key: bronze}]
+          notebook_task:
+            notebook_path: ./databricks/prod/02_silver_merge.py
+        - task_key: gold
+          depends_on: [{task_key: silver}]
+          max_retries: 1
+          notebook_task:
+            notebook_path: ./databricks/prod/03_gold_reconcile.py
+        - task_key: kpis
+          depends_on: [{task_key: gold}]
+          notebook_task:
+            notebook_path: ./databricks/prod/04_kpi_snapshots.py
+
+targets:
+  dev:
+    mode: development
+    default: true
+
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-0000000000000000.0.azuredatabricks.net   # Terraform output databricks_workspace_url
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      service_principal_name: 00000000-0000-0000-0000-000000000000   # the CI service principal's application ID
+    variables:
+      catalog: recon
+      landing_path: abfss://landing@strecomprodxxxx.dfs.core.windows.net/
+      checkpoint_path: abfss://lakehouse@strecomprodxxxx.dfs.core.windows.net/_checkpoints/

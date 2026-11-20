@@ -17,3 +17,7 @@ T+1 is the preliminary snapshot, one day after the business date, using only led
 ## Restatements
 
 If late data changes a number after it was published, the original snapshot stays as reported and a new snapshot is added with a later snapshot_at time. Always say which cutoff and which snapshot a number comes from.
+
+
+## Dashboard
+![Alt text](image.png)

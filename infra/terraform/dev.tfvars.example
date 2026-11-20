@@ -1,0 +1,7 @@
+# Copy to dev.tfvars and fill in. Not secret, but specific to your subscription.
+environment              = "dev"
+suffix                   = "x7k2"
+location                 = "eastus2"
+catalog                  = "recon_dev"
+databricks_sql_http_path = "/sql/1.0/warehouses/<warehouse-id>"
+api_client_id            = "<entra app registration client id>"

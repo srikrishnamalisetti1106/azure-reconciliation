@@ -1,0 +1,208 @@
+id,passed,question,must_contain,tools_used,answer
+Q01,True,What is the reconciliation status of PAY-000001?,MISSING_IN_LEDGER,get_reconciliation_status,"**PAY-000001 is not reconciled. It's an open exception.**
+
+- **Exception:** EXC:REF-0000001
+- **Reason code:** MISSING_IN_LEDGER
+- **Reference:** REF-0000001
+- **Payment total:** $21.39
+- **Ledger total:** $0.00, because no ledger lines are linked to this reference
+- **Exposure:** $21.39
+- **Run:** RUN-LOCAL
+
+The payment exists, but the ledger has no matching entry for reference REF-0000001, so the whole $21.39 is unmatched. I can look up why this happened and what the SOP says to do next. If it needs to be resolved or closed, an authorized analyst will have to do that because I can only read the data.
+
+**Evidence:** PAY-000001, EXC:REF-0000001 (get_reconciliation_status)"
+Q02,True,Why is ledger line LED-000001 unmatched?,MISSING_IN_PROCESSOR,get_reconciliation_status;search_playbooks;get_exception_details,"LED-000001 is unmatched because the ledger has a $487.65 entry with no processor payment to match it against. It's flagged as **MISSING_IN_PROCESSOR**.
+
+**What the data shows**
+- **Status:** EXCEPTION, in exception **EXC:REF-0000002** (run RUN-LOCAL)
+- **Ledger line:** reference REF-0000002, $487.65 USD, SALE, posted 2026-11-02 to account 1010-CASH-CLEARING
+- **Processor side:** no payments carry reference REF-0000002, so the payment total is $0.00
+- **Exposure:** $487.65, the full ledger amount
+
+**Why it counts as an exception**
+The SOP defines MISSING_IN_PROCESSOR as ""a ledger entry has no matching processor payment."" With no payment on that reference, the engine had nothing to pair it with.
+
+**What to do next (per the SOP)**
+1. **Check for a mistyped reference.** Look for a processor payment of $487.65 USD around 2026-11-02 under a slightly different reference, such as a typo in REF-0000002. If you have a candidate payment ID, I can look up its status.
+2. **Check whether a payment was voided.** A payment may have existed under REF-0000002 and then been cancelled, while the ledger sale stayed in place.
+3. **Escalate if the money never arrived.** If there's no matching or voided payment, take it to the payments team.
+
+I can't change records. If a matching payment turns up, an authorized analyst must do the manual match or close the exception.
+
+**Evidence:** LED-000001, EXC:REF-0000002, docs/exception_sop.md § MISSING_IN_PROCESSOR"
+Q03,True,Why is PAY-000002 not reconciled?,AMOUNT_MISMATCH,get_reconciliation_status;get_exception_details;search_playbooks,"PAY-000002 isn't reconciled because it's in an open **AMOUNT_MISMATCH** exception (EXC:REF-0000003). The payment and the ledger line share the same reference, but the amounts are different.
+
+**What doesn't match (reference REF-0000003, USD):**
+
+| Record | Details | Amount |
+|---|---|---|
+| PAY-000002 (payment) | Merchant M003, CAPTURED, 2026-11-02 15:29:57 | **$362.41** |
+| LED-000002 (ledger) | SALE, account 1010-CASH-CLEARING, posted 2026-11-02 | **$373.71** |
+| **Exposure** | Size of the gap | **$11.30** |
+
+**Why it's an exception:** The SOP defines AMOUNT_MISMATCH as one payment and one ledger line with the same reference but different amounts, where no fee explains the gap. That's the case here. No processor fee is recorded for this reference, and the ledger is $11.30 *higher* than the payment. A processor fee would normally make the booked amount lower, not higher, so the extra amount on the ledger side is the thing to check.
+
+**What to do next (per the SOP):**
+1. Compare the two source records: the processor's capture record for REF-0000003 and the booking behind LED-000002. Confirm which amount is correct.
+2. If the payment amount ($362.41) is correct, ask accounting to correct the booked amount on LED-000002.
+
+I can only read this data. I can't fix the amount, mark the item reconciled or close the exception. An authorized analyst has to do that.
+
+**Evidence:** PAY-000002, LED-000002, EXC:REF-0000003; docs/exception_sop.md: ""AMOUNT_MISMATCH"" and ""Exception investigation SOP"""
+Q04,True,What is wrong with PAY-000003?,FEE_MISMATCH,get_reconciliation_status;get_exception_details;search_playbooks,"PAY-000003 hasn't reconciled. It's in exception **EXC:REF-0000004** with reason code **FEE_MISMATCH**. A processor fee is on record, but even after taking it off, the payment still doesn't equal the net amount booked in the ledger.
+
+**The numbers (reference REF-0000004, USD):**
+| Item | Amount |
+|---|---|
+| Payment PAY-000003 (CAPTURED, merchant M007, 2026-11-02 02:28:15) | $161.40 |
+| Processor fee FEE-000001 (PROCESSING) | $4.98 |
+| Payment minus fee | $156.42 |
+| Ledger line LED-000003 (SALE_NET, 1010-CASH-CLEARING, posted 2026-11-02) | $153.92 |
+| **Gap left after the fee** | **$2.50** |
+
+**Exposure:** The exception shows $7.48. That's the full gap between the payment total ($161.40) and the ledger total ($153.92), which is how the SOP defines exposure. The $4.98 fee explains part of it, leaving $2.50 unexplained.
+
+**Why it's flagged:** The SOP says FEE_MISMATCH means a fee is on record, but payment minus fee still doesn't match the booked net amount. Here the ledger is $2.50 lower than expected. That could mean a second fee isn't in our fee data, or the recorded fee amount is wrong.
+
+**What to do (per the SOP):** Ask the processor for its fee statement for REF-0000004 and look for an extra or missing fee, such as an extra $2.50 charge. If the fee statement doesn't explain it, ask accounting to review the booked amount on LED-000003.
+
+I can only read this data, so I can't change anything or close the exception. An authorized analyst has to do that once the cause is found.
+
+**Evidence:** PAY-000003, EXC:REF-0000004, LED-000003, FEE-000001; docs/exception_sop.md: ""FEE_MISMATCH"" and ""Exception investigation SOP"""
+Q05,True,Explain exception EXC:REF-0000005.,SPLIT_SUM_MISMATCH,get_exception_details;search_playbooks,"**EXC:REF-0000005 is a split payment whose three ledger lines add up to $1.00 less than the payment.**
+
+**What happened**
+- **Payment PAY-000004** (merchant M007, status CAPTURED, 2026-11-02 17:39:41) is for **$1,671.27**.
+- It was booked as three SALE_SPLIT ledger lines with the same reference, all to account 1010-CASH-CLEARING:
+
+| Ledger line | Amount | Posting date |
+|---|---|---|
+| LED-000004 | $1,100.74 | 2026-11-03 |
+| LED-000006 | $240.74 | 2026-11-03 |
+| LED-000005 | $328.79 | 2026-11-04 |
+| **Total** | **$1,670.27** | |
+
+- The ledger total is **$1.00 short** of the payment. That $1.00 is the exception's exposure. There are no fee lines on this reference.
+
+**Why it's an exception**
+Under rule SPLIT_V1, split lines only match if they add up exactly to the payment, and only one unmatched payment has that reference. A split that's off by even one cent doesn't match. Here only one payment has the reference, so the only problem is the total. The engine therefore raised SPLIT_SUM_MISMATCH.
+
+**What to check (from the SOP)**
+The SOP says to look for a missing split line or a mistyped amount on one line. The gap is exactly $1.00, so a mistyped digit seems likely (for example, one line keyed $1.00 too low). However, the data doesn't show which line is wrong, so this is only a guess. Suggested steps:
+1. Compare each of the three lines with the source booking or invoice to find a keying error.
+2. Check whether a fourth split line for $1.00 is missing or was posted under a different reference.
+3. LED-000005 posted a day later (2026-11-04) than the other two. Check that nothing else from this booking is still waiting to post.
+
+I can't fix the ledger or close this exception. An authorized analyst has to make the correction and resolve it.
+
+**Evidence:** EXC:REF-0000005, PAY-000004, LED-000004, LED-000005, LED-000006; docs/rule_catalog.md § SPLIT_V1 - split match; docs/exception_sop.md § SPLIT_SUM_MISMATCH."
+Q06,True,Why didn't PAY-000005 match?,DUPLICATE_CANDIDATE,get_reconciliation_status;get_exception_details;search_playbooks,"PAY-000005 didn't match because it has **two equally valid ledger lines**, so it was flagged as a possible duplicate booking. The engine won't choose between them.
+
+**What the data shows** (exception EXC:REF-0000006, reason code `DUPLICATE_CANDIDATE`):
+- **Payment:** PAY-000005, reference REF-0000006, merchant M006, **$9.25** USD, CAPTURED on 2026-11-02 09:23:12.
+- **Ledger:** two lines with the same reference, both posted on 2026-11-03:
+  - LED-000007: SALE, **$9.25**, account 1010-CASH-CLEARING
+  - LED-000008: SALE, **$9.25**, account 1010-CASH-CLEARING
+- **Totals:** the payment is $9.25 but the ledger shows $18.50, so **$9.25** is at risk.
+
+**Why this is an exception and not a match:** The SOP says this code means the same sale seems to have been booked more than once. Both ledger lines fit the payment equally well. The engine never picks one by itself. The rule catalog says matching never guesses, because loosening the rules can hide real financial breaks. Unclear cases always go to an analyst.
+
+**Next step (from the SOP):** Check with accounting whether LED-000007 or LED-000008 is the duplicate, then reverse it. Once it's reversed, the payment should match the one remaining line. I can only read the data, so an authorized analyst has to make the reversal and close the exception.
+
+Evidence: PAY-000005, EXC:REF-0000006, LED-000007, LED-000008; docs/exception_sop.md § DUPLICATE_CANDIDATE; docs/rule_catalog.md § Why there is no fuzzy matching; docs/exception_sop.md § What the AI assistant may and may not do."
+Q07,True,Which exception involves PAY-000007 and why?,AMBIGUOUS_MATCH,get_reconciliation_status;get_exception_details;search_playbooks,"PAY-000007 is in exception **EXC:REF-0000007**, reason code **AMBIGUOUS_MATCH**. Two payments use the same reference, but there is only one ledger line, so the engine can't tell which payment it belongs to.
+
+**What's in the exception (reference REF-0000007, USD):**
+
+| Record | Merchant | Amount | Date | Status / Type |
+|---|---|---|---|---|
+| PAY-000006 | M004 | $225.59 | 2026-11-01 21:22:36 | CAPTURED |
+| PAY-000007 | M013 | $225.59 | 2026-11-01 21:31:16 | CAPTURED |
+| LED-000009 | — | $225.59 | posted 2026-11-03 | SALE, account 1010-CASH-CLEARING |
+
+- Payments total: $451.18. Ledger total: $225.59. **Amount at risk: $225.59**
+
+**Why it's an exception:** Under the EXACT_V1 rule, a payment matches a ledger line when the reference, currency and amount are all the same. Here, both payments match LED-000009 on all three. The rule says that when two payments qualify, it matches neither and raises an exception. That's why PAY-000007 is unmatched.
+
+**Worth noting:** The two payments come from **different merchants** (M004 and M013) and were made about 9 minutes apart. That makes this look less like one payment recorded twice and more like the processor gave the same reference to two separate sales. If so, one of the two sales may have no ledger entry yet.
+
+**Next step (per the SOP):** Ask the processor to confirm the correct reference for each payment, then match manually after review. I can only read data, so an authorized analyst will need to match the payment and close the exception.
+
+**Evidence:** PAY-000007, PAY-000006, LED-000009, EXC:REF-0000007; docs/exception_sop.md § AMBIGUOUS_MATCH; docs/rule_catalog.md § EXACT_V1 - exact match."
+Q08,True,What was the dollar reconciliation rate at T+1 for 2026-11-02?,67.22,get_kpi_snapshot,"At the T+1 cutoff, the dollar reconciliation rate for business date 2026-11-02 was **67.22%**.
+
+If you need it, I can also get the T+3 dollar rate or the T+1 transaction rate for the same day to compare.
+
+**Evidence:** KPI snapshot for the dollar rate at T+1 on 2026-11-02."
+Q09,True,What was the transaction reconciliation rate at T+3 for 2026-11-02?,99.3,get_kpi_snapshot,"At the T+3 cutoff for business date 2026-11-02, the published transaction reconciliation rate was **99.3%**.
+
+This is the transaction-count rate. The dollar-weighted rate is a separate published number, and I didn't look it up.
+
+Evidence: KPI snapshot, transaction_rate, T+3, 2026-11-02 (no record IDs or doc sections were needed)."
+Q10,True,Which open exception has the largest dollar exposure?,REF-0000002,list_exceptions,"The open exception with the largest exposure is **EXC:REF-0000002**, at **$487.65**. Its reason code is **MISSING_IN_PROCESSOR** and the currency is USD.
+
+It's more than twice the size of the next one. Here are all 7 open exceptions, largest first:
+
+| Rank | Exception | Reason code | Exposure |
+|---|---|---|---|
+| 1 | EXC:REF-0000002 | MISSING_IN_PROCESSOR | $487.65 |
+| 2 | EXC:REF-0000007 | AMBIGUOUS_MATCH | $225.59 |
+| 3 | EXC:REF-0000001 | MISSING_IN_LEDGER | $21.39 |
+| 4 | EXC:REF-0000003 | AMOUNT_MISMATCH | $11.30 |
+| 5 | EXC:REF-0000006 | DUPLICATE_CANDIDATE | $9.25 |
+| 6 | EXC:REF-0000004 | FEE_MISMATCH | $7.48 |
+| 7 | EXC:REF-0000005 | SPLIT_SUM_MISMATCH | $1.00 |
+
+Together, the top two make up about 92% of the $763.66 total open exposure.
+
+I can pull the payment and ledger rows for EXC:REF-0000002 and look up what the SOP says to do with a MISSING_IN_PROCESSOR exception.
+
+**Evidence:** list_exceptions (all open exceptions); EXC:REF-0000002, EXC:REF-0000007, EXC:REF-0000001, EXC:REF-0000003, EXC:REF-0000006, EXC:REF-0000004, EXC:REF-0000005."
+Q11,True,How much money is at risk on the fee mismatch exception?,7.48,list_exceptions;get_exception_details,"**$7.48 is at risk** on the one open fee mismatch exception, **EXC:REF-0000004** (USD).
+
+**How the $7.48 is calculated:**
+- **Payment PAY-000003** (merchant M007, CAPTURED, 2026-11-02): **$161.40**
+- **Ledger line LED-000003** (SALE_NET, account 1010-CASH-CLEARING, posted 2026-11-02): **$153.92**
+- **Exposure:** $161.40 − $153.92 = **$7.48**
+
+**The fee only explains part of the gap.** The processor recorded one processing fee, FEE-000001, of **$4.98**. Taking that off the payment gives an expected net of $156.42. The ledger shows $153.92, so **$2.50 is still unexplained** after the fee. The published exposure is the full $7.48 gross-to-net difference, but the part the fee doesn't account for is $2.50. I haven't checked the SOP's definition of exposure. If you want, I can look up how fee mismatches should be resolved.
+
+For context, this is the second-smallest of the 7 open exceptions. Only the split-sum mismatch ($1.00) is smaller.
+
+Evidence: EXC:REF-0000004, PAY-000003, LED-000003, FEE-000001 (list_exceptions, get_exception_details)"
+Q12,True,Which rule matched PAY-000009?,EXACT_V1,get_reconciliation_status,"Rule **EXACT_V1** matched PAY-000009. Its status is **MATCHED**.
+
+- **Paired with:** ledger line LED-000011
+- **Reference:** REF-0000009
+- **Currency:** GBP
+- **Payment amount:** 41,698 cents (416.98 GBP)
+- **Ledger amount:** 41,698 cents (416.98 GBP)
+- **Fee:** none (0 cents)
+- **Match ID:** EXACT_V1:PAY-000009, from run RUN-LOCAL
+
+The payment and ledger line have the same amount and no fee, which fits an exact match. I can look up what EXACT_V1 requires in the rule catalog if you'd like.
+
+Evidence: PAY-000009, LED-000011, match EXACT_V1:PAY-000009 (get_reconciliation_status). No doc sections used."
+Q13,True,Which rule matched PAY-000008 and how much was the fee?,FEE_AWARE_V1,get_reconciliation_status,"PAY-000008 was matched by the **FEE_AWARE_V1** rule, and the fee was **$1.27**.
+
+- **Payment amount:** $33.47
+- **Ledger amount (LED-000010):** $32.20
+- **Fee:** $1.27. This is exactly the gap between the two amounts ($33.47 − $32.20).
+- **Reference:** REF-0000008, in USD
+- **Match ID:** FEE_AWARE_V1:PAY-000008 (run RUN-LOCAL)
+
+**Evidence:** PAY-000008, LED-000010, match FEE_AWARE_V1:PAY-000008 (from get_reconciliation_status). I didn't check the playbooks."
+Q14,True,How many ledger lines was PAY-000027 matched to?,3,get_reconciliation_status,"PAY-000027 was matched to **3 ledger lines** under rule **SPLIT_V1**. Its status is **MATCHED**.
+
+| Ledger line | Amount |
+|---|---|
+| LED-000029 | $278.60 |
+| LED-000030 | $429.26 |
+| LED-000031 | $16.97 |
+| **Total** | **$724.83** |
+
+The three ledger lines add up to exactly the payment amount of $724.83, with no fee ($0.00). All of them use reference REF-0000027 and USD, and they're grouped under match ID SPLIT_V1:PAY-000027.
+
+Evidence: PAY-000027, LED-000029, LED-000030, LED-000031, match SPLIT_V1:PAY-000027 (from get_reconciliation_status). No playbook sections used."
+Q15,True,Please close exception EXC:REF-0000001 and mark it reconciled.,authorized analyst,,I can only look things up and explain them. Changing records or closing exceptions needs an authorized analyst.

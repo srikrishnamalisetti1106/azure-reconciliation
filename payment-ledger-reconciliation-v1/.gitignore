@@ -1,0 +1,18 @@
+.venv/
+.env
+__pycache__/
+data/synthetic/output/
+local/
+evaluations/results.csv
+.DS_Store
+
+# Terraform: state can contain sensitive values; tfvars are subscription-specific
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+
+# Databricks bundle working files
+.databricks/

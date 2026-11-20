@@ -87,6 +87,15 @@ api/main.py                       FastAPI endpoints
 docs/                             Rule catalog, exception SOP, KPI definitions
 evaluations/                      15 questions with known answers and the scoring script
 .github/workflows/ci.yml          Lint and tests on every push
+
+Production (Azure) — see PRODUCTION.md
+databricks.yml                    Databricks Asset Bundle: dev/prod targets, file-arrival job
+databricks/prod/                  Auto Loader bronze, MERGE silver/gold, KPI snapshots
+assistant/tools_databricks.py     Same tools, reading Unity Catalog via a SQL warehouse
+api/auth.py                       Entra ID token validation and app roles
+Dockerfile, docker-compose.yml    API container image
+infra/terraform/                  ADLS Gen2, Databricks, Key Vault, ACR, Container Apps
+.github/workflows/deploy.yml      OIDC login, Terraform, image build, bundle deploy, smoke test
 ```
 
 ## How to run it
@@ -118,13 +127,21 @@ python evaluations/run_eval.py
 
 To run the pipeline on Databricks, connect this repo as a Git folder in Databricks Free Edition and run the notebooks in `databricks/` in order, or chain them as a Job.
 
+## In production
+
+The demo runs for free. [PRODUCTION.md](PRODUCTION.md) shows how the same code runs on Azure:
+files land in ADLS Gen2, Auto Loader and Delta MERGE make re-runs safe, a Databricks job starts when
+a file arrives, the API runs as a container on Azure Container Apps with secrets from Key Vault, users
+sign in with Entra ID, and GitHub Actions deploys with OIDC and an approval gate. All infrastructure is
+code (Terraform + Databricks Asset Bundle). These files have not been deployed to a live subscription yet.
+
+You can try the container locally: `docker compose up --build`, then open http://127.0.0.1:8000/docs.
+
 ## What's next
 
-- Tableau dashboard and a KPI restatements table
+- Tableau or Power BI dashboard and a KPI restatements table
 - Full 40-question evaluation with hard-fail checks for data exposure
-- Docker image, deployed to Azure Container Apps
-- Azure Data Lake Storage for raw files and Key Vault for secrets
-- Entra ID sign-in with Analyst and Admin roles
+- Deploy the Azure setup in PRODUCTION.md to a dev subscription
 - Larger synthetic datasets and performance tests
 
 ## Note on data

@@ -1,0 +1,12 @@
+.venv/
+.env
+.git/
+.github/
+__pycache__/
+local/
+data/synthetic/output/
+evaluations/results.csv
+infra/
+tests/
+*.md
+!docs/*.md

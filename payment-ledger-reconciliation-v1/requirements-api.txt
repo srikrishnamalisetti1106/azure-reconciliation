@@ -1,0 +1,15 @@
+# Runtime dependencies for the API container (no Spark: matching runs on Databricks)
+anthropic
+langgraph
+langchain-anthropic
+langchain-mcp-adapters
+mcp
+fastapi
+uvicorn[standard]
+httpx
+chromadb
+langfuse
+python-dotenv
+duckdb
+databricks-sql-connector
+pyjwt[crypto]

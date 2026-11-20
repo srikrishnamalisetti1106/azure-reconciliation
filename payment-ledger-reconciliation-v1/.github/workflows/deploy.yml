@@ -1,0 +1,95 @@
+# Deploys to Azure after CI passes on main.
+# No passwords stored in GitHub: azure/login uses OpenID Connect (a federated credential
+# on an Entra app registration), so GitHub gets a short-lived token per run.
+#
+# One-time setup (repository Settings > Environments > "production"):
+#   variables: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, TF_SUFFIX,
+#              DATABRICKS_HOST, DATABRICKS_SQL_HTTP_PATH, API_CLIENT_ID
+#   protection rule: required reviewer, so every prod deploy needs a human approval
+name: deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # for OIDC login
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # 1. Infrastructure. Image must exist before the Container App points at it,
+      #    so the first run creates the registry, then builds, then applies the new tag.
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform init
+        working-directory: infra/terraform
+        run: terraform init -input=false
+      - name: Terraform apply (registry first)
+        working-directory: infra/terraform
+        run: >
+          terraform apply -input=false -auto-approve
+          -target=azurerm_container_registry.main
+          -var environment=prod -var suffix=${{ vars.TF_SUFFIX }}
+
+      # 2. Build the API image inside Azure (no Docker daemon or registry password needed here).
+      - name: Build image in ACR
+        working-directory: infra/terraform
+        run: |
+          ACR=$(terraform output -raw acr_login_server)
+          az acr build --registry "${ACR%%.*}" --image recon-api:${IMAGE_TAG} --image recon-api:latest ../..
+
+      - name: Terraform apply (everything, new image tag)
+        working-directory: infra/terraform
+        run: >
+          terraform apply -input=false -auto-approve
+          -var environment=prod -var suffix=${{ vars.TF_SUFFIX }}
+          -var image_tag=${IMAGE_TAG} -var catalog=recon
+          -var databricks_sql_http_path=${{ vars.DATABRICKS_SQL_HTTP_PATH }}
+          -var api_client_id=${{ vars.API_CLIENT_ID }}
+
+      # 3. Databricks jobs and notebooks, as the CI service principal (same OIDC identity).
+      - uses: databricks/setup-cli@main
+      - name: Deploy Databricks bundle
+        env:
+          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+          DATABRICKS_AUTH_TYPE: azure-cli
+        run: |
+          databricks bundle validate -t prod
+          databricks bundle deploy -t prod
+
+      # 4. Smoke test: the new revision answers health checks.
+      - name: Smoke test
+        working-directory: infra/terraform
+        run: |
+          URL=$(terraform output -raw api_url)
+          for i in 1 2 3 4 5 6; do
+            curl -fsS "$URL/api/health" && exit 0
+            sleep 20
+          done
+          echo "API did not become healthy" && exit 1

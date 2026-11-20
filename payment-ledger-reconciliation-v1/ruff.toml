@@ -1,0 +1,6 @@
+# Databricks notebooks get these globals from the runtime.
+builtins = ["spark", "dbutils", "display"]
+
+[lint]
+select = ["E", "F"]
+ignore = ["E402", "E501", "E731"]

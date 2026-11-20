@@ -1,0 +1,14 @@
+# Run the production image on your laptop against the local DuckDB copy.
+#   python assistant/export_to_duckdb.py   (once, to create local/recon.duckdb)
+#   docker compose up --build
+# Then open http://127.0.0.1:8000/docs
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      RECON_BACKEND: duckdb
+    volumes:
+      - ./local/recon.duckdb:/app/local/recon.duckdb:ro

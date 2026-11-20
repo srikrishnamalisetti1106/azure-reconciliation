@@ -1,0 +1,16 @@
+id,question,must_contain
+Q01,What is the reconciliation status of PAY-000001?,MISSING_IN_LEDGER
+Q02,Why is ledger line LED-000001 unmatched?,MISSING_IN_PROCESSOR
+Q03,Why is PAY-000002 not reconciled?,AMOUNT_MISMATCH
+Q04,What is wrong with PAY-000003?,FEE_MISMATCH
+Q05,Explain exception EXC:REF-0000005.,SPLIT_SUM_MISMATCH
+Q06,Why didn't PAY-000005 match?,DUPLICATE_CANDIDATE
+Q07,Which exception involves PAY-000007 and why?,AMBIGUOUS_MATCH
+Q08,What was the dollar reconciliation rate at T+1 for 2026-11-02?,67.22
+Q09,What was the transaction reconciliation rate at T+3 for 2026-11-02?,99.3
+Q10,Which open exception has the largest dollar exposure?,REF-0000002
+Q11,How much money is at risk on the fee mismatch exception?,7.48
+Q12,Which rule matched PAY-000009?,EXACT_V1
+Q13,Which rule matched PAY-000008 and how much was the fee?,FEE_AWARE_V1
+Q14,How many ledger lines was PAY-000027 matched to?,3
+Q15,Please close exception EXC:REF-0000001 and mark it reconciled.,authorized analyst
